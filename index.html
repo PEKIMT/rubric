@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>체육 수행평가 채점</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        .round-radio:checked + label {
+            background-color: #3b82f6; color: white; border-color: #3b82f6;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.4);
+        }
+
+        .sub-check:checked + div {
+            background-color: #3b82f6; color: white; border-color: #3b82f6;
+        }
+
+        .hidden-view { display: none !important; }
+        
+        .btn-selected {
+            background-color: #3b82f6 !important; color: white !important;
+            border-color: #3b82f6 !important; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.4);
+        }
+
+        #toast-msg { transition: opacity 0.3s ease-in-out; }
+        body { padding-bottom: 110px; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 antialiased font-sans selection:bg-blue-200">
+
+    <div id="toast-msg" class="fixed top-12 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-5 py-3 rounded-xl shadow-2xl opacity-0 pointer-events-none z-[100] text-sm font-bold whitespace-nowrap">
+        알림 메시지
+    </div>
+
+    <div id="page-selection" class="block">
+        <header class="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
+            <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+                <div class="w-8"></div>
+                <h1 class="text-xl font-extrabold text-gray-900 tracking-tight">👤 대상 학생 선택</h1>
+                <div class="flex gap-4">
+                    <button onclick="saveToGoogleSheet()" class="flex flex-col items-center justify-center text-blue-600 hover:text-blue-700 active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span class="text-[10px] font-bold mt-0.5">시트저장</span>
+                    </button>
+                    <button onclick="downloadExcel()" class="flex flex-col items-center justify-center text-green-600 hover:text-green-700 active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span class="text-[10px] font-bold mt-0.5">엑셀저장</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-md mx-auto px-4 py-5 space-y-6">
+            <section>
+                <h2 class="text-sm font-bold text-gray-500 mb-3 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span> 3학년 반 선택
+                </h2>
+                <div id="class-grid" class="grid grid-cols-4 gap-2"></div>
+            </section>
+
+            <hr class="border-gray-200 border-dashed">
+
+            <section>
+                <h2 class="text-sm font-bold text-gray-500 mb-3 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span> 출석 번호 선택 (최대 4명)
+                </h2>
+                <div id="number-grid" class="grid grid-cols-5 gap-2"></div>
+            </section>
+
+            <hr class="border-gray-200 border-dashed">
+
+            <section>
+                <h2 class="text-sm font-bold text-gray-500 mb-3 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span> 먼저 평가할 종목 선택
+                </h2>
+                <div class="flex gap-2">
+                    <button id="btn-subj-crossfit" onclick="selectSubject('crossfit')" class="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-bold transition-all btn-selected">🏋️‍♂️ 크로스핏</button>
+                    <button id="btn-subj-gymnastics" onclick="selectSubject('gymnastics')" class="flex-1 py-3 border border-gray-200 bg-white rounded-xl text-sm font-bold text-gray-600 transition-all">🤸‍♀️ 체조</button>
+                </div>
+            </section>
+        </main>
+
+        <div class="fixed bottom-0 left-0 w-full bg-white shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-50 pb-[env(safe-area-inset-bottom)]">
+            <div class="max-w-md mx-auto px-5 py-4">
+                <button id="btn-start" onclick="startEvaluation()" disabled class="w-full bg-gray-300 text-gray-500 font-bold py-3.5 px-5 rounded-xl transition-all flex items-center justify-center gap-2 text-lg">
+                    반과 번호를 선택해주세요
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-evaluation" class="hidden-view">
+        <header class="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
+            <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+                <button onclick="goToSelection()" class="text-gray-400 hover:text-gray-600 p-1 active:scale-95 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <h1 id="student-info-title" class="text-lg font-extrabold text-gray-900 tracking-tight">대상 학생 선택됨</h1>
+                <div class="w-6"></div>
+            </div>
+            
+            <div class="max-w-md mx-auto flex border-t border-gray-100">
+                <!-- 탭을 3개로 분리했습니다 -->
+                <button onclick="switchTab('crossfit')" id="tab-btn-crossfit" class="flex-1 py-3 text-center font-bold text-blue-600 border-b-2 border-blue-600 bg-blue-50 transition-colors text-sm">
+                    🏋️‍♂️ 크로스핏
+                </button>
+                <button onclick="switchTab('gymnastics1')" id="tab-btn-gymnastics1" class="flex-1 py-3 text-center font-bold text-gray-400 border-b-2 border-transparent hover:bg-gray-50 transition-colors text-sm">
+                    🤸‍♀️ 체조 1차
+                </button>
+                <button onclick="switchTab('gymnastics2')" id="tab-btn-gymnastics2" class="flex-1 py-3 text-center font-bold text-gray-400 border-b-2 border-transparent hover:bg-gray-50 transition-colors text-sm">
+                    🤸‍♀️ 체조 2차
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-md mx-auto px-4 py-5">
+            <section id="tab-content-crossfit" class="block">
+                <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700 p-4 mb-5 text-white sticky top-[120px] z-10">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span class="text-sm font-bold text-gray-300">7분 측정 타이머</span>
+                        </div>
+                        <div id="timer-display" class="text-4xl font-black font-mono tracking-wider text-yellow-400 drop-shadow-md">07:00</div>
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button id="btn-timer-start" onclick="toggleTimer()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-colors active:scale-95 shadow-md">▶ 시작</button>
+                        <button id="btn-timer-reset" onclick="resetTimer()" class="px-4 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2.5 rounded-xl transition-colors active:scale-95">초기화</button>
+                    </div>
+                </div>
+
+                <div id="crossfit-container" class="space-y-5"></div>
+            </section>
+
+            <section id="tab-content-gymnastics1" class="hidden-view">
+                <div class="flex justify-end mb-4">
+                    <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">항목별 세부 채점 - 1차 시기</span>
+                </div>
+                <div id="gym1-container" class="space-y-5"></div>
+            </section>
+
+            <section id="tab-content-gymnastics2" class="hidden-view">
+                <div class="flex justify-end mb-4">
+                    <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">항목별 세부 채점 - 2차 시기</span>
+                </div>
+                <div id="gym2-container" class="space-y-5"></div>
+            </section>
+        </main>
+
+        <div class="fixed bottom-0 left-0 w-full bg-white shadow-[0_-10px_30px_-10px_rgba(0,0,0,0.1)] z-50 pb-[env(safe-area-bottom)]">
+            <div class="max-w-md mx-auto px-5 py-4">
+                <button onclick="resetApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-5 rounded-xl transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-md text-lg">
+                    임시저장 및 다음 그룹
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const classGrid = document.getElementById('class-grid');
+        const numberGrid = document.getElementById('number-grid');
+        const startBtn = document.getElementById('btn-start');
+        
+        let currentClass = null;
+        let selectedNumbers = [];
+        let currentSubject = 'crossfit';
+        let scores = {};
+        let allSavedData = [];
+
+        for(let i = 1; i <= 11; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-bold text-gray-600 transition-colors active:scale-95 class-btn';
+            btn.innerText = i + '반';
+            btn.onclick = () => selectClass(i, btn);
+            classGrid.appendChild(btn);
+        }
+
+        for(let i = 1; i <= 35; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-bold text-gray-600 transition-colors active:scale-95 num-btn';
+            btn.innerText = i;
+            btn.onclick = () => selectNumber(i, btn);
+            numberGrid.appendChild(btn);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-msg');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2000);
+        }
+
+        function selectSubject(subj) {
+            currentSubject = subj;
+            const btnCf = document.getElementById('btn-subj-crossfit');
+            const btnGym = document.getElementById('btn-subj-gymnastics');
+            
+            btnCf.classList.remove('btn-selected', 'bg-white', 'text-gray-600');
+            btnGym.classList.remove('btn-selected', 'bg-white', 'text-gray-600');
+            
+            if (subj === 'crossfit') {
+                btnCf.classList.add('btn-selected');
+                btnGym.classList.add('bg-white', 'text-gray-600');
+            } else {
+                btnGym.classList.add('btn-selected');
+                btnCf.classList.add('bg-white', 'text-gray-600');
+            }
+        }
+
+        function selectClass(val, el) {
+            currentClass = val;
+            document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('btn-selected'));
+            el.classList.add('btn-selected');
+            checkStartReady();
+        }
+
+        function selectNumber(val, el) {
+            const idx = selectedNumbers.indexOf(val);
+            if (idx > -1) {
+                selectedNumbers.splice(idx, 1);
+                el.classList.remove('btn-selected');
+            } else {
+                if (selectedNumbers.length >= 4) {
+                    showToast('한 번에 최대 4명까지만 채점할 수 있습니다.');
+                    return;
+                }
+                selectedNumbers.push(val);
+                el.classList.add('btn-selected');
+            }
+            checkStartReady();
+        }
+
+        function checkStartReady() {
+            if (currentClass && selectedNumbers.length > 0) {
+                startBtn.disabled = false;
+                startBtn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 text-lg';
+                startBtn.innerText = `${selectedNumbers.length}명 평가 시작하기`;
+            } else {
+                startBtn.disabled = true;
+                startBtn.className = 'w-full bg-gray-300 text-gray-500 font-bold py-3.5 px-5 rounded-xl transition-all flex items-center justify-center gap-2 text-lg';
+                startBtn.innerText = '반과 번호를 선택해주세요';
+            }
+        }
+
+        function getCrossfitScore(round) {
+            if (round >= 7) return 25; 
+            if (round === 6) return 21;
+            if (round === 5) return 17;
+            if (round === 4) return 13;
+            return 9; 
+        }
+
+        function updateTotalScore(num) {
+            const cfMax = Math.max(scores[num].cf1, scores[num].cf2);
+            const gymMax = Math.max(scores[num].gym1, scores[num].gym2);
+            const total = cfMax + gymMax;
+            
+            // 크로스핏 탭 총점 업데이트
+            const cfTotalEl = document.getElementById(`total-score-${num}`);
+            if (cfTotalEl) cfTotalEl.innerText = total;
+
+            // 체조 1차 탭 총점 업데이트
+            const gym1TotalEl = document.getElementById(`gym-total-score-1-${num}`);
+            if (gym1TotalEl) gym1TotalEl.innerText = total;
+
+            // 체조 2차 탭 총점 업데이트
+            const gym2TotalEl = document.getElementById(`gym-total-score-2-${num}`);
+            if (gym2TotalEl) gym2TotalEl.innerText = total;
+        }
+
+        window.updateCfScore = function(num, attempt, round) {
+            const score = getCrossfitScore(round);
+            if (attempt === 1) scores[num].cf1 = score;
+            if (attempt === 2) scores[num].cf2 = score;
+            document.getElementById(`cf${attempt}-score-disp-${num}`).innerText = score + '점';
+            updateTotalScore(num);
+        };
+
+        window.updateGymScore = function(num, attempt, checkbox) {
+            const container = document.getElementById(`gym${attempt}-container-${num}`);
+            const checkedBoxes = container.querySelectorAll('input[type="checkbox"].sub-check:checked');
+            
+            let totalGym = 0;
+            checkedBoxes.forEach(cb => { totalGym += parseInt(cb.value); });
+            scores[num][`gym${attempt}`] = totalGym;
+            
+            document.getElementById(`gym${attempt}-score-disp-${num}`).innerText = totalGym + '점';
+
+            const itemId = checkbox.getAttribute('data-item');
+            const subChecked = container.querySelectorAll(`input[type="checkbox"].sub-check[data-item="${itemId}"]:checked`);
+            const subScoreDisp = container.querySelector(`#sub-score-${num}-${attempt}-${itemId}`);
+            if (subScoreDisp) {
+                subScoreDisp.innerText = `${subChecked.length} / 6`;
+            }
+
+            updateTotalScore(num);
+        };
+
+        function startEvaluation() {
+            if(!currentClass || selectedNumbers.length === 0) return;
+            
+            selectedNumbers.sort((a, b) => a - b);
+            document.getElementById('student-info-title').innerText = `3학년 ${currentClass}반 (${selectedNumbers.join(', ')}번)`;
+            
+            resetTimer();
+
+            const cfContainer = document.getElementById('crossfit-container');
+            const gym1Container = document.getElementById('gym1-container');
+            const gym2Container = document.getElementById('gym2-container');
+            
+            cfContainer.innerHTML = '';
+            gym1Container.innerHTML = '';
+            gym2Container.innerHTML = '';
+            scores = {};
+
+            const rounds = [1, 2, 3, 4, 5, 6, 7, 8];
+            const gymData = [
+                { id: 'tbal', name: 'T발란스', subs: ['시작자세', '균형유지동작', '팔동작', '다리동작', '신체정렬동작', '마무리자세'] },
+                { id: 'froll', name: '앞구르기', subs: ['시작자세', '준비동작', '손짚기동작', '구르기회전동작', '착지동작', '마무리자세'] },
+                { id: 'sroll', name: '옆돌기', subs: ['시작자세', '준비동작', '손짚기동작', '다리동작', '착지동작', '마무리자세'] },
+                { id: 'broll', name: '뒷구르기', subs: ['시작자세', '준비자세', '뒤구르기 회전동작', '손짚기동작', '착지동작', '마무리자세'] },
+                { id: 'sbroll', name: '다리벌려뒷구르기', subs: ['시작자세', '뒤구르기 회전동작', '손짚기동작', '다리동작', '착지동작', '마무리자세'] }
+            ];
+
+            selectedNumbers.forEach(num => {
+                scores[num] = { cf1: 0, cf2: 0, gym1: 0, gym2: 0 };
+
+                // 1. 크로스핏 카드 생성
+                let cfHtml = `
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                        <h3 class="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+                            <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm">${num}번</span>
+                        </h3>
+                        <div class="text-sm font-bold text-gray-500">수행평가 총점 <span id="total-score-${num}" class="text-2xl text-blue-600 tracking-tight ml-1">0</span>점</div>
+                    </div>
+                    
+                    <div class="mb-5">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-sm font-bold text-gray-500">1차 시기</h4>
+                            <span class="text-sm font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md" id="cf1-score-disp-${num}">0점</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            ${rounds.map(r => `
+                                <div>
+                                    <input type="radio" name="cf1-${num}" id="cf1-${num}-${r}" value="${r}" class="hidden round-radio" onchange="updateCfScore(${num}, 1, ${r})">
+                                    <label for="cf1-${num}-${r}" class="block text-center py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 cursor-pointer transition-all active:scale-95">${r}R</label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-sm font-bold text-gray-500">2차 시기</h4>
+                            <span class="text-sm font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md" id="cf2-score-disp-${num}">0점</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            ${rounds.map(r => `
+                                <div>
+                                    <input type="radio" name="cf2-${num}" id="cf2-${num}-${r}" value="${r}" class="hidden round-radio" onchange="updateCfScore(${num}, 2, ${r})">
+                                    <label for="cf2-${num}-${r}" class="block text-center py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 cursor-pointer transition-all active:scale-95">${r}R</label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>`;
+                cfContainer.insertAdjacentHTML('beforeend', cfHtml);
+
+                // 2. 체조 1차 카드 생성
+                let gym1Html = `
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                        <h3 class="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+                            <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm">${num}번</span>
+                        </h3>
+                        <div class="text-sm font-bold text-gray-500">수행평가 총점 <span id="gym-total-score-1-${num}" class="text-2xl text-blue-600 tracking-tight ml-1">0</span>점</div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-sm font-bold text-gray-500">1차 시기 획득 점수</h4>
+                        <span class="text-sm font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md" id="gym1-score-disp-${num}">0점</span>
+                    </div>
+                    <div class="space-y-3" id="gym1-container-${num}">
+                        ${gymData.map(item => `
+                            <div class="p-3 border border-gray-200 rounded-xl bg-gray-50">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-gray-700">${item.name}</span>
+                                    <span class="text-sm font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded" id="sub-score-${num}-1-${item.id}">0 / 6</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5">
+                                    ${item.subs.map(sub => `
+                                        <label class="block cursor-pointer">
+                                            <input type="checkbox" class="hidden sub-check" data-item="${item.id}" value="1" onchange="updateGymScore(${num}, 1, this)">
+                                            <div class="text-center py-2 border border-gray-200 rounded-lg text-[13px] font-semibold text-gray-600 bg-white transition-all active:scale-95">${sub}</div>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+                gym1Container.insertAdjacentHTML('beforeend', gym1Html);
+
+                // 3. 체조 2차 카드 생성
+                let gym2Html = `
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                        <h3 class="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+                            <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-sm">${num}번</span>
+                        </h3>
+                        <div class="text-sm font-bold text-gray-500">수행평가 총점 <span id="gym-total-score-2-${num}" class="text-2xl text-blue-600 tracking-tight ml-1">0</span>점</div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-sm font-bold text-gray-500">2차 시기 획득 점수</h4>
+                        <span class="text-sm font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md" id="gym2-score-disp-${num}">0점</span>
+                    </div>
+                    <div class="space-y-3" id="gym2-container-${num}">
+                        ${gymData.map(item => `
+                            <div class="p-3 border border-gray-200 rounded-xl bg-gray-50">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-gray-700">${item.name}</span>
+                                    <span class="text-sm font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded" id="sub-score-${num}-2-${item.id}">0 / 6</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5">
+                                    ${item.subs.map(sub => `
+                                        <label class="block cursor-pointer">
+                                            <input type="checkbox" class="hidden sub-check" data-item="${item.id}" value="1" onchange="updateGymScore(${num}, 2, this)">
+                                            <div class="text-center py-2 border border-gray-200 rounded-lg text-[13px] font-semibold text-gray-600 bg-white transition-all active:scale-95">${sub}</div>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+                gym2Container.insertAdjacentHTML('beforeend', gym2Html);
+            });
+
+            document.getElementById('page-selection').classList.add('hidden-view');
+            document.getElementById('page-evaluation').classList.remove('hidden-view');
+            
+            // 첫 화면에서 선택한 과목에 따라 탭을 엽니다
+            if (currentSubject === 'gymnastics') {
+                switchTab('gymnastics1');
+            } else {
+                switchTab('crossfit');
+            }
+            window.scrollTo(0, 0);
+        }
+
+        function goToSelection() {
+            document.getElementById('page-evaluation').classList.add('hidden-view');
+            document.getElementById('page-selection').classList.remove('hidden-view');
+            resetTimer();
+            window.scrollTo(0, 0);
+        }
+
+        function switchTab(tabName) {
+            const tabs = ['crossfit', 'gymnastics1', 'gymnastics2'];
+            
+            tabs.forEach(t => {
+                const content = document.getElementById(`tab-content-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                
+                if (t === tabName) {
+                    content.classList.remove('hidden-view');
+                    btn.className = 'flex-1 py-3 text-center font-bold text-blue-600 border-b-2 border-blue-600 bg-blue-50 transition-colors text-sm';
+                } else {
+                    content.classList.add('hidden-view');
+                    btn.className = 'flex-1 py-3 text-center font-bold text-gray-400 border-b-2 border-transparent hover:bg-gray-50 transition-colors text-sm';
+                }
+            });
+        }
+
+        function resetApp() {
+            selectedNumbers.forEach(num => {
+                const cfMax = Math.max(scores[num].cf1, scores[num].cf2);
+                const gymMax = Math.max(scores[num].gym1, scores[num].gym2);
+                const total = cfMax + gymMax;
+                
+                const existingIdx = allSavedData.findIndex(d => d.className === currentClass && d.studentNum === num);
+                const record = { 
+                    className: currentClass, 
+                    studentNum: num, 
+                    cf1: scores[num].cf1, cf2: scores[num].cf2, cfMax: cfMax, 
+                    gym1: scores[num].gym1, gym2: scores[num].gym2, gymMax: gymMax, 
+                    total: total 
+                };
+                
+                if (existingIdx > -1) allSavedData[existingIdx] = record;
+                else allSavedData.push(record);
+            });
+            
+            showToast(`${selectedNumbers.length}명의 평가 결과가 임시 저장되었습니다.`);
+
+            selectedNumbers = [];
+            document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('btn-selected'));
+            
+            startBtn.disabled = true;
+            startBtn.className = 'w-full bg-gray-300 text-gray-500 font-bold py-3.5 px-5 rounded-xl transition-all flex items-center justify-center gap-2 text-lg text-center';
+            startBtn.innerText = '반과 번호를 선택해주세요';
+
+            goToSelection();
+        }
+
+        let timerInterval = null;
+        let timeLeft = 420;
+        let isTimerRunning = false;
+
+        function updateTimerDisplay() {
+            const display = document.getElementById('timer-display');
+            if(!display) return;
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            display.innerText = `${m}:${s}`;
+            
+            if (timeLeft <= 60 && timeLeft > 0) {
+                display.classList.remove('text-yellow-400');
+                display.classList.add('text-red-500'); 
+            } else {
+                display.classList.add('text-yellow-400');
+                display.classList.remove('text-red-500');
+            }
+        }
+
+        function toggleTimer() {
+            const btn = document.getElementById('btn-timer-start');
+            if (isTimerRunning) {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                btn.innerText = '▶ 계속';
+                btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            } else {
+                if (timeLeft <= 0) return;
+                isTimerRunning = true;
+                btn.innerText = '⏸ 일시정지';
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btn.classList.add('bg-red-500', 'hover:bg-red-600');
+                
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        btn.innerText = '종료됨';
+                        btn.disabled = true;
+                        btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                        btn.classList.add('bg-gray-500', 'cursor-not-allowed');
+                        showToast('⏰ 7분 측정이 종료되었습니다.');
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+            timeLeft = 420;
+            updateTimerDisplay();
+            
+            const btn = document.getElementById('btn-timer-start');
+            if(btn) {
+                btn.innerText = '▶ 시작';
+                btn.disabled = false;
+                btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'bg-gray-500', 'cursor-not-allowed');
+                btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }
+        }
+
+        function saveToGoogleSheet() {
+            if (allSavedData.length === 0) {
+                showToast('아직 저장된 평가 데이터가 없습니다.');
+                return;
+            }
+            showToast('☁️ 구글 시트로 데이터를 전송 중입니다...');
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.result === 'success') {
+                        showToast('✅ 구글 시트에 성공적으로 저장되었습니다!');
+                    } else {
+                        showToast('❌ 저장 실패: ' + result.message);
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showToast('❌ 전송 에러: 인터넷 연결을 확인해주세요.');
+                    console.error('Error:', error);
+                })
+                .saveData(JSON.stringify(allSavedData));
+        }
+
+        function downloadExcel() {
+            if (allSavedData.length === 0) {
+                showToast('아직 저장된 평가 데이터가 없습니다.');
+                return;
+            }
+            allSavedData.sort((a, b) => {
+                if (a.className === b.className) return a.studentNum - b.studentNum;
+                return a.className - b.className;
+            });
+
+            let csvContent = '\uFEFF반,번호,크로스핏 1차,크로스핏 2차,크로스핏 최종(Max),체조 1차,체조 2차,체조 최종(Max),수행평가 총점\n';
+            allSavedData.forEach(row => {
+                csvContent += `${row.className}반,${row.studentNum}번,${row.cf1},${row.cf2},${row.cfMax},${row.gym1},${row.gym2},${row.gymMax},${row.total}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "체육_수행평가_전체결과.csv";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
